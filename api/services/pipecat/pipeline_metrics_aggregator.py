@@ -34,6 +34,10 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._tts_usage_metrics: Dict[str, int] = defaultdict(int)
         self._stt_usage_metrics: Dict[str, float] = defaultdict(float)
         self._live_usage_metrics: Dict[str, float] = defaultdict(float)
+        # Prompt tokens of the first in-pipeline LLM call. The Doctor's Layer 0
+        # compares it with the rendered node prompt to detect calls that ran
+        # without their system prompt.
+        self._first_turn_llm: Optional[Dict[str, any]] = None
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -74,6 +78,13 @@ class PipelineMetricsAggregator(FrameProcessor):
     async def _handle_llm_usage_metrics(self, data: LLMUsageMetricsData):
         key = f"{data.processor}|||{data.model}"
         new_usage = data.value
+
+        if self._first_turn_llm is None:
+            self._first_turn_llm = {
+                "prompt_tokens": new_usage.prompt_tokens,
+                "processor": data.processor,
+                "model": data.model,
+            }
 
         if key in self._llm_usage_metrics:
             aggregated = self._llm_usage_metrics[key].model_dump()
@@ -132,6 +143,8 @@ class PipelineMetricsAggregator(FrameProcessor):
         }
         if self._live_usage_metrics:
             usage["live_audio_seconds"] = dict(self._live_usage_metrics)
+        if self._first_turn_llm is not None:
+            usage["first_turn_llm"] = dict(self._first_turn_llm)
         return usage
 
     def reset_metrics(self):
@@ -140,5 +153,6 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._tts_usage_metrics.clear()
         self._stt_usage_metrics.clear()
         self._live_usage_metrics.clear()
+        self._first_turn_llm = None
         self._start_time = None
         self._stop_time = None

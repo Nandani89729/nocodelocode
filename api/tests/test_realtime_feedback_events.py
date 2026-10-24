@@ -1,6 +1,7 @@
 from api.services.pipecat.realtime_feedback_events import (
     build_bot_text_event,
     build_function_call_end_event,
+    build_latency_breakdown_event,
     build_node_transition_event,
     build_user_transcription_event,
     realtime_feedback_event_sort_key,
@@ -21,7 +22,7 @@ def test_build_function_call_end_event_serializes_results():
         "payload": {
             "function_name": "lookup_contact",
             "tool_call_id": "tool-1",
-            "result": "{'contact_id': 42}",
+            "result": '{"contact_id": 42}',
         },
     }
 
@@ -90,3 +91,26 @@ def test_transcript_can_include_end_timestamps_without_changing_default_format()
         "[2026-01-01T00:00:06+00:00 -> 2026-01-01T00:00:08+00:00] "
         "user: January fifth\n"
     )
+
+
+def test_function_call_end_event_serializes_lists_and_scalars():
+    list_event = build_function_call_end_event(
+        function_name="kb", tool_call_id="t", result=[{"text": "a"}]
+    )
+    scalar_event = build_function_call_end_event(
+        function_name="kb", tool_call_id="t", result=7
+    )
+
+    assert list_event["payload"]["result"] == '[{"text": "a"}]'
+    assert scalar_event["payload"]["result"] == "7"
+
+
+def test_build_latency_breakdown_event_wraps_payload():
+    breakdown = {
+        "total_secs": 1.2,
+        "ttfb": [{"processor": "stt", "duration_secs": 0.3}],
+    }
+
+    event = build_latency_breakdown_event(breakdown)
+
+    assert event == {"type": "rtf-latency-breakdown", "payload": breakdown}

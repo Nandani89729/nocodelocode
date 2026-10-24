@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import String, and_, func, select
 
 from api.db.base_client import BaseDBClient
+from api.db.filters import exclude_internal_runs
 from api.db.models import WorkflowModel, WorkflowRunModel
 
 
@@ -116,6 +117,8 @@ class ReportsClient(BaseDBClient):
 
             if workflow_id is not None:
                 query = query.where(WorkflowRunModel.workflow_id == workflow_id)
+
+            query = exclude_internal_runs(query)
 
             result = await session.execute(query)
             rows = result.all()

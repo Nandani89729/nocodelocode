@@ -1,8 +1,13 @@
 """Shared helpers for building and ordering realtime feedback events."""
 
+import json
 from typing import Any
 
 from pipecat.utils.enums import RealtimeFeedbackType
+
+# Persisted-only event type (not part of the pipecat enum); the UI ignores
+# types it does not recognise.
+LATENCY_BREAKDOWN_EVENT_TYPE = "rtf-latency-breakdown"
 
 
 def build_node_transition_event(
@@ -32,6 +37,7 @@ def build_user_transcription_event(
     timestamp: str | None = None,
     end_timestamp: str | None = None,
     user_id: str | None = None,
+    turn_interrupted: bool | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "text": text,
@@ -43,6 +49,8 @@ def build_user_transcription_event(
         payload["end_timestamp"] = end_timestamp
     if user_id is not None:
         payload["user_id"] = user_id
+    if turn_interrupted is not None:
+        payload["turn_interrupted"] = turn_interrupted
     return {
         "type": RealtimeFeedbackType.USER_TRANSCRIPTION.value,
         "payload": payload,
@@ -54,15 +62,27 @@ def build_bot_text_event(
     text: str,
     timestamp: str | None = None,
     end_timestamp: str | None = None,
+    turn_interrupted: bool | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {"text": text}
     if timestamp is not None:
         payload["timestamp"] = timestamp
     if end_timestamp is not None:
         payload["end_timestamp"] = end_timestamp
+    if turn_interrupted is not None:
+        payload["turn_interrupted"] = turn_interrupted
     return {
         "type": RealtimeFeedbackType.BOT_TEXT.value,
         "payload": payload,
+    }
+
+
+def build_latency_breakdown_event(breakdown: dict[str, Any]) -> dict[str, Any]:
+    """Wrap a pipecat ``LatencyBreakdown`` dump (per-service TTFB, user turn
+    time, function-call latency, contributions) for persistence."""
+    return {
+        "type": LATENCY_BREAKDOWN_EVENT_TYPE,
+        "payload": breakdown,
     }
 
 
@@ -85,9 +105,18 @@ def build_function_call_start_event(
 
 
 def serialize_realtime_feedback_tool_result(result: Any) -> str | None:
-    """Normalize function-call results to the string shape stored in logs."""
+    """Normalize function-call results to the string shape stored in logs.
+
+    Dicts and lists are serialized as JSON so post-call analysis can parse
+    them (e.g. knowledge-base chunks); other values fall back to ``str``.
+    """
     if result is None:
         return None
+    if isinstance(result, (dict, list)):
+        try:
+            return json.dumps(result, default=str, ensure_ascii=False)
+        except (TypeError, ValueError):
+            pass
     return str(result)
 
 

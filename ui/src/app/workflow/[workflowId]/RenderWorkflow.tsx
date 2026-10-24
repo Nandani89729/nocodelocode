@@ -11,13 +11,15 @@ import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
+import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowApiV1WorkflowFetchWorkflowIdGet, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse, WorkflowVersionResponse } from '@/client/types.gen';
+import { CopilotPanel } from '@/components/copilot/CopilotPanel';
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { HireExpertNudge } from "@/components/lead-forms/HireExpertNudge";
+import { useSelfImproveStatus } from '@/components/self-improve/useSelfImproveStatus';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { detailFromError } from '@/lib/apiError';
@@ -34,6 +36,7 @@ import { WorkflowTesterPanel } from './components/WorkflowTesterPanel';
 import { WorkflowVersionDiffDialog } from './components/WorkflowVersionDiffDialog';
 import { WorkflowProvider } from "./contexts/WorkflowContext";
 import { useWorkflowState } from "./hooks/useWorkflowState";
+import { useWorkflowStore } from './stores/workflowStore';
 import { layoutNodes } from './utils/layoutNodes';
 
 const edgeTypes = {
@@ -85,6 +88,13 @@ function RenderWorkflow({
     const [isTesterRailOpen, setIsTesterRailOpen] = useState(true);
     const [isTesterSheetOpen, setIsTesterSheetOpen] = useState(false);
     const [isDesktopViewport, setIsDesktopViewport] = useState(false);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    // Copilot: a side rail from 768px, a full-screen sheet below.
+    const [isCopilotRailViewport, setIsCopilotRailViewport] = useState(true);
+    // Keep the rail mounted after first open so closing it doesn't cut a reply off.
+    const [hasOpenedCopilot, setHasOpenedCopilot] = useState(false);
+    // Self-improve status, polled while the editor is open (DS-2 ready signal).
+    const selfImprove = useSelfImproveStatus(workflowId);
     const [versions, setVersions] = useState<WorkflowVersionResponse[]>([]);
     const [versionsLoading, setVersionsLoading] = useState(false);
     const [versionsLoadingMore, setVersionsLoadingMore] = useState(false);
@@ -126,6 +136,7 @@ function RenderWorkflow({
         onEdgesChange,
         onNodesChange,
         onDelete,
+        validateWorkflow,
     } = useWorkflowState({
         initialWorkflowName,
         workflowId,
@@ -394,11 +405,61 @@ function RenderWorkflow({
 
     const handleOpenTester = useCallback(() => {
         if (window.innerWidth >= 1280) {
+            // The copilot rail takes the tester's place; switch back to the tester.
+            setIsCopilotOpen(false);
             setIsTesterRailOpen(true);
             return;
         }
         setIsTesterSheetOpen(true);
     }, []);
+
+    // "?copilot=1" (set after "Build with Copilot" creates this workflow)
+    // opens the Copilot on load so the build conversation carries on here.
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get('copilot') === '1') {
+            setIsCopilotOpen(true);
+            setHasOpenedCopilot(true);
+        }
+    }, []);
+
+    const handleToggleCopilot = useCallback(() => {
+        setIsCopilotOpen((open) => !open);
+        setHasOpenedCopilot(true);
+    }, []);
+
+    // Reload the saved working copy onto the canvas, e.g. after the copilot
+    // saved a draft. Same store path as handleSelectVersion (no history, not
+    // dirty); refreshing the version list moves activeVersionId to the new
+    // draft, which remounts ReactFlow via its key.
+    const reloadWorkingCopy = useCallback(async () => {
+        const response = await getWorkflowApiV1WorkflowFetchWorkflowIdGet({
+            path: { workflow_id: workflowId },
+        });
+        if (response.error || !response.data) {
+            toast.error(detailFromError(response.error, "Failed to reload the workflow"));
+            return;
+        }
+        const workflow = response.data;
+        const definition = workflow.workflow_definition as { nodes?: FlowNode[]; edges?: FlowEdge[] };
+        setNodes(definition.nodes ?? []);
+        setEdges(definition.edges ?? []);
+        setIsDirty(false);
+        const store = useWorkflowStore.getState();
+        if (workflow.workflow_configurations && store.workflowConfigurations) {
+            store.setWorkflowConfigurations({
+                ...store.workflowConfigurations,
+                ...(workflow.workflow_configurations as Partial<WorkflowConfigurations>),
+            });
+        }
+        // Set the name directly: setWorkflowName would mark the canvas dirty.
+        useWorkflowStore.setState({ workflowName: workflow.name });
+        setCurrentVersionNumber(workflow.version_number ?? null);
+        setCurrentVersionStatus(workflow.version_status ?? null);
+        if (versionsFetched.current) {
+            await fetchVersions(true);
+        }
+        await validateWorkflow();
+    }, [workflowId, setNodes, setEdges, setIsDirty, fetchVersions, validateWorkflow]);
 
     const shouldShowWebCallOnboarding = useMemo(() => {
         return (initialTotalRuns ?? 0) === 0 && !hasCompletedAction('web_call_started');
@@ -407,6 +468,7 @@ function RenderWorkflow({
     useEffect(() => {
         const syncViewport = () => {
             setIsDesktopViewport(window.innerWidth >= 1280);
+            setIsCopilotRailViewport(window.innerWidth >= 768);
         };
 
         syncViewport();
@@ -584,6 +646,9 @@ function RenderWorkflow({
                     user={user}
                     onPhoneCallClick={() => setIsPhoneCallDialogOpen(true)}
                     onTestAgentClick={handleOpenTester}
+                    onCopilotClick={handleToggleCopilot}
+                    isCopilotOpen={isCopilotOpen}
+                    copilotReviewCount={selfImprove.toReview}
                     onHistoryClick={handleOpenVersionPanel}
                     activeVersionLabel={activeVersionLabel}
                     isViewingHistoricalVersion={isViewingHistoricalVersion}
@@ -747,15 +812,32 @@ function RenderWorkflow({
                             </div>
                         </div>
 
+                        {hasOpenedCopilot && isCopilotRailViewport && (
+                            <aside
+                                className={isCopilotOpen ? "h-full w-[360px] shrink-0 border-l border-border lg:w-[400px]" : "hidden"}
+                            >
+                                <CopilotPanel
+                                    workflowId={workflowId}
+                                    draftVersion={hasDraft ? currentVersionNumber : null}
+                                    hasUnsavedChanges={isDirty}
+                                    onApplied={reloadWorkingCopy}
+                                    onReloadCanvas={() => void reloadWorkingCopy()}
+                                    onClose={() => setIsCopilotOpen(false)}
+                                    selfImprove={selfImprove}
+                                />
+                            </aside>
+                        )}
+
                         {isTesterRailOpen && (
-                            <aside className="hidden h-full w-[400px] shrink-0 border-l border-border xl:block">
+                            // Stays mounted (hidden) while the copilot rail is open so a running test isn't cut off.
+                            <aside className={isCopilotOpen && isCopilotRailViewport ? "hidden" : "hidden h-full w-[400px] shrink-0 border-l border-border xl:block"}>
                                 <WorkflowTesterPanel
                                     workflowId={workflowId}
                                     initialContextVariables={templateContextVariables}
                                     disabled={testerDisabledReason !== null}
                                     disabledReason={testerDisabledReason}
                                     showWebCallOnboarding={shouldShowWebCallOnboarding}
-                                    isVisible={isDesktopViewport}
+                                    isVisible={isDesktopViewport && !isCopilotOpen}
                                     onClose={() => setIsTesterRailOpen(false)}
                                     onRuntimeNodeTransition={handleRuntimeNodeTransition}
                                 />
@@ -773,6 +855,22 @@ function RenderWorkflow({
                                 showWebCallOnboarding={shouldShowWebCallOnboarding}
                                 isVisible={isTesterSheetOpen}
                                 onRuntimeNodeTransition={handleRuntimeNodeTransition}
+                            />
+                        </SheetContent>
+                    </Sheet>
+
+                    <Sheet open={isCopilotOpen && !isCopilotRailViewport} onOpenChange={setIsCopilotOpen}>
+                        <SheetContent side="right" className="w-full max-w-none gap-0 p-0 sm:max-w-none">
+                            <SheetTitle className="sr-only">Copilot</SheetTitle>
+                            <CopilotPanel
+                                workflowId={workflowId}
+                                draftVersion={hasDraft ? currentVersionNumber : null}
+                                hasUnsavedChanges={isDirty}
+                                onApplied={reloadWorkingCopy}
+                                onReloadCanvas={() => void reloadWorkingCopy()}
+                                headerClassName="pr-12"
+                                selfImprove={selfImprove}
+                                mobile
                             />
                         </SheetContent>
                     </Sheet>

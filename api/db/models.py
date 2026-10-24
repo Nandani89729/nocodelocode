@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -23,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship
 
 from api.constants import DEFAULT_CAMPAIGN_RETRY_CONFIG
+from api.services.workflow.doctor.contracts import REPORT_RETENTION_DAYS
 
 from ..enums import (
     CallType,
@@ -1536,4 +1537,618 @@ class KnowledgeBaseChunkModel(Base):
             postgresql_with={"lists": 100},  # Adjust based on dataset size
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+    )
+
+
+def _report_expires_at() -> datetime:
+    return datetime.now(UTC) + timedelta(days=REPORT_RETENTION_DAYS)
+
+
+class WorkflowAnalysisReportModel(Base):
+    """Agent Doctor analysis report for one workflow's recent calls.
+
+    ``status`` holds ``contracts.ReportStatus`` values; ``result`` holds a
+    ``contracts.ReportResult`` dump (checkpointed per stage). Rows expire
+    ``REPORT_RETENTION_DAYS`` after creation.
+    """
+
+    __tablename__ = "workflow_analysis_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Public identifier for API references
+    report_uuid = Column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    # Organization scoping
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    status = Column(
+        String(20), nullable=False, default="queued", server_default="queued"
+    )
+    params = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    result = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    error = Column(Text, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    expires_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_report_expires_at,
+        server_default=text(f"now() + interval '{REPORT_RETENTION_DAYS} days'"),
+    )
+
+    # Relationships
+    organization = relationship("OrganizationModel")
+    workflow = relationship("WorkflowModel")
+    scenarios = relationship(
+        "RegressionScenarioModel",
+        back_populates="report",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    __table_args__ = (
+        Index("ix_workflow_analysis_reports_organization_id", "organization_id"),
+        Index(
+            "ix_workflow_analysis_reports_workflow_created",
+            "workflow_id",
+            "created_at",
+        ),
+    )
+
+
+class RegressionScenarioModel(Base):
+    """One turn of a real call pinned as a regression scenario by the Doctor.
+
+    ``verification`` holds a ``contracts.VerificationResult`` dump.
+    """
+
+    __tablename__ = "regression_scenarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    report_id = Column(
+        Integer,
+        ForeignKey("workflow_analysis_reports.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    cluster_id = Column(String(64), nullable=True)
+    source_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    turn = Column(Integer, nullable=True)
+    expected_behavior = Column(Text, nullable=True)
+    expected_confirmed = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    verification = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    candidate_definition_id = Column(
+        Integer,
+        ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    # Relationships
+    report = relationship("WorkflowAnalysisReportModel", back_populates="scenarios")
+
+    __table_args__ = (
+        Index("ix_regression_scenarios_organization_id", "organization_id"),
+        Index("ix_regression_scenarios_workflow_id", "workflow_id"),
+        Index("ix_regression_scenarios_report_id", "report_id"),
+    )
+
+
+class CopilotSessionModel(Base):
+    """One Agent Copilot chat (milestone 2), bound to a workflow or to
+    "build new" (``workflow_id`` None).
+
+    ``transcript`` holds ``copilot.contracts.TranscriptMessage`` dumps and
+    ``plan`` the last ``contracts.Plan`` presented in the session.
+    """
+
+    __tablename__ = "copilot_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Public identifier for API references
+    session_uuid = Column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    # Organization scoping
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+
+    #: ``copilot.contracts.SessionKind``: "chat" (user chats) or
+    #: "self_improve" (the one per-workflow session Self-improve rounds use).
+    kind = Column(String(20), nullable=False, default="chat", server_default="chat")
+    title = Column(String(255), nullable=True)
+    transcript = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    plan = Column(JSON, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    # Relationships
+    proposals = relationship(
+        "CopilotProposalModel",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    __table_args__ = (
+        Index("ix_copilot_sessions_organization_id", "organization_id"),
+        Index(
+            "ix_copilot_sessions_workflow_updated",
+            "workflow_id",
+            "updated_at",
+        ),
+        # At most one self-improve session per workflow (get_or_create race).
+        Index(
+            "uq_copilot_sessions_self_improve_workflow",
+            "workflow_id",
+            unique=True,
+            postgresql_where=text("kind = 'self_improve'"),
+        ),
+    )
+
+
+class CopilotProposalModel(Base):
+    """A reviewable set of workflow changes proposed by the Copilot.
+
+    ``changes`` holds ``copilot.contracts.ChangeItem`` dumps; ``candidate_json``
+    the full proposed workflow definition. ``status`` holds
+    ``contracts.ProposalStatus`` values.
+    """
+
+    __tablename__ = "copilot_proposals"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Public identifier for API references
+    proposal_uuid = Column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    session_id = Column(
+        Integer,
+        ForeignKey("copilot_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # Organization scoping
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+
+    kind = Column(String(20), nullable=False)
+    summary = Column(Text, nullable=False, default="", server_default="")
+    base_hash = Column(String(128), nullable=True)
+    candidate_json = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    code = Column(Text, nullable=False, default="", server_default="")
+    changes = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    status = Column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+    workflow_name = Column(String(255), nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Self-improve (M2b). ``iteration_id`` is set when a round proposed this;
+    # circular with self_improve_iterations.proposal_id, hence use_alter.
+    iteration_id = Column(
+        Integer,
+        ForeignKey(
+            "self_improve_iterations.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_copilot_proposals_iteration_id",
+        ),
+        nullable=True,
+    )
+    #: change_ids the user accepted at apply time (O2)
+    accepted_change_ids = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    #: the draft definition the apply produced (O2)
+    applied_definition_id = Column(
+        Integer,
+        ForeignKey(
+            "workflow_definitions.id",
+            name="fk_copilot_proposals_applied_definition_id",
+        ),
+        nullable=True,
+    )
+    #: change_id ->``copilot.contracts.Hypothesis`` dump (O3)
+    hypotheses = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    # Settings and new tools (M2c). ``settings_candidate`` is
+    # {configurations, template_variables} as proposed; it and
+    # ``settings_base_hash`` are NULL for graph-only proposals.
+    settings_candidate = Column(JSON, nullable=True)
+    settings_base_hash = Column(String(128), nullable=True)
+    #: ``api.schemas.tool.CreateToolRequest`` dumps created on apply
+    new_tools = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+
+    # Relationships. Joined so ``proposal.session.session_uuid`` is available
+    # after the DB session closes (contracts.Proposal carries session_uuid).
+    session = relationship(
+        "CopilotSessionModel", back_populates="proposals", lazy="joined"
+    )
+
+    __table_args__ = (
+        Index("ix_copilot_proposals_organization_id", "organization_id"),
+        Index("ix_copilot_proposals_session_id", "session_id"),
+        # A round proposes at most once (O5).
+        Index(
+            "uq_copilot_proposals_iteration_id",
+            "iteration_id",
+            unique=True,
+            postgresql_where=text("iteration_id IS NOT NULL"),
+        ),
+    )
+
+
+class WorkflowBriefModel(Base):
+    """The workflow's brief / North Star (M2b R15/D2).
+
+    ``brief`` holds a ``copilot.contracts.WorkflowBrief`` dump; ``history`` a
+    list of earlier versions ``{version, brief, updated_at, updated_by}``,
+    oldest first. ``version`` is the optimistic lock (0 = never saved).
+    """
+
+    __tablename__ = "workflow_briefs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    brief = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    version = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    history = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    #: "user" | "copilot"
+    updated_by = Column(String(20), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (Index("ix_workflow_briefs_organization_id", "organization_id"),)
+
+
+class WorkflowBriefChangeModel(Base):
+    """A copilot-proposed brief update awaiting the user's Confirm (O8).
+
+    ``proposed`` holds a ``WorkflowBrief`` dump; ``status`` holds
+    ``copilot.contracts.BriefChangeStatus`` values.
+    """
+
+    __tablename__ = "workflow_brief_changes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    change_uuid = Column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    base_version = Column(Integer, nullable=False)
+    proposed = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    reason = Column(Text, nullable=False, default="", server_default="")
+    status = Column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_workflow_brief_changes_organization_id", "organization_id"),
+        Index("ix_workflow_brief_changes_workflow_status", "workflow_id", "status"),
+    )
+
+
+class SelfImproveModel(Base):
+    """Self-improve settings and spend-guard state for one workflow (M2b).
+
+    ``window_multiplier`` (1/2/4) and ``consecutive_failures`` / ``paused``
+    implement D6. ``reviewed_at`` starts the current counting window: only
+    runs counted at or after it fill the next round (D4).
+    """
+
+    __tablename__ = "self_improve"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    enabled = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    every_n_calls = Column(
+        Integer, nullable=False, default=10, server_default=text("10")
+    )
+    enabled_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    window_multiplier = Column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    consecutive_failures = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    paused = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    paused_reason = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (Index("ix_self_improve_organization_id", "organization_id"),)
+
+
+class SelfImproveIterationModel(Base):
+    """One Self-improve round: Doctor on ``run_ids`` + one copilot turn.
+
+    ``status`` holds ``self_improve.contracts.IterationStatus`` values;
+    ``carryover`` a list of ``FixCarryover`` dumps. ``stage_started_at`` is
+    when the current status began (the stuck-round sweep reads it, O5).
+
+    The DB client sets these plain attributes on rows it returns (not
+    columns): ``report_uuid``, ``proposal_uuid``, ``proposal_status`` and
+    ``reviewed``.
+    """
+
+    __tablename__ = "self_improve_iterations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    number = Column(Integer, nullable=False)
+    status = Column(
+        String(20), nullable=False, default="queued", server_default="queued"
+    )
+    run_ids = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    report_id = Column(
+        Integer,
+        ForeignKey("workflow_analysis_reports.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    proposal_id = Column(
+        Integer,
+        ForeignKey(
+            "copilot_proposals.id",
+            ondelete="SET NULL",
+            name="fk_self_improve_iterations_proposal_id",
+        ),
+        nullable=True,
+    )
+    carryover = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+    summary = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    stage_started_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    # Filled by the DB client from joined rows; not columns.
+    report_uuid = None
+    proposal_uuid = None
+    proposal_status = None
+    reviewed = False
+
+    __table_args__ = (
+        UniqueConstraint(
+            "workflow_id", "number", name="uq_self_improve_iterations_workflow_number"
+        ),
+        Index("ix_self_improve_iterations_organization_id", "organization_id"),
+        Index("ix_self_improve_iterations_status", "status"),
+    )
+
+
+class SelfImproveRunModel(Base):
+    """A real conversation counted toward Self-improve (O7).
+
+    ``run_id`` is unique, so a run is counted once across all windows;
+    ``iteration_id`` NULL = collected, not yet in a round.
+    """
+
+    __tablename__ = "self_improve_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id = Column(
+        Integer,
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    counted_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    iteration_id = Column(
+        Integer,
+        ForeignKey("self_improve_iterations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        Index("ix_self_improve_runs_workflow_iteration", "workflow_id", "iteration_id"),
     )

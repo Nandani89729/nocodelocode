@@ -1,0 +1,615 @@
+{
+  "n": 20,
+  "arms": [
+    {
+      "name": "gpt-4.1 (incumbent)",
+      "n": 20,
+      "correct": 20,
+      "wrong": 0,
+      "declined": 0,
+      "accuracy_of_answered": "100%",
+      "p50_ms": 850,
+      "p95_ms": 2690
+    },
+    {
+      "name": "jev (no gate)",
+      "n": 20,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 393,
+      "p95_ms": 452
+    },
+    {
+      "name": "jev @ conf>=0.75",
+      "n": 20,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 393,
+      "p95_ms": 452
+    }
+  ],
+  "timing_arms": [
+    {
+      "name": "jev (same subset)",
+      "n": 20,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 393,
+      "p95_ms": 452
+    },
+    {
+      "name": "jev + timing@5.0s",
+      "n": 20,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 385,
+      "p95_ms": 504
+    },
+    {
+      "name": "jev + timing @ conf>=0.75",
+      "n": 20,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2,
+      "accuracy_of_answered": "94%",
+      "p50_ms": 385,
+      "p95_ms": 504
+    }
+  ],
+  "timing_per_scenario": [
+    {
+      "scenario_id": "vm-01",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.93,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 1.5,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.3,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "vm-02",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.98,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 1.8,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.36,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "vm-03",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.94,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.6,
+        "separate_bursts_of_speech": 2,
+        "share_of_time_speaking": 0.68,
+        "share_of_speech_in_first_half": 0.51
+      }
+    },
+    {
+      "scenario_id": "vm-04",
+      "expected": "voicemail",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 0.89,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": null,
+        "first_speech_lasted_seconds": 0.0,
+        "separate_bursts_of_speech": 0,
+        "share_of_time_speaking": 0.0,
+        "share_of_speech_in_first_half": null
+      }
+    },
+    {
+      "scenario_id": "hu-01",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.4,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.09,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "hu-02",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.6,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.11,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "hu-03",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 0.84,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": null,
+        "first_speech_lasted_seconds": 0.0,
+        "separate_bursts_of_speech": 0,
+        "share_of_time_speaking": 0.0,
+        "share_of_speech_in_first_half": null
+      }
+    },
+    {
+      "scenario_id": "hu-04",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 1.1,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.23,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "hd-01",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 0.99,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.3,
+        "separate_bursts_of_speech": 3,
+        "share_of_time_speaking": 0.43,
+        "share_of_speech_in_first_half": 0.72
+      }
+    },
+    {
+      "scenario_id": "hd-02",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.7,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 1.2,
+        "separate_bursts_of_speech": 2,
+        "share_of_time_speaking": 0.41,
+        "share_of_speech_in_first_half": 0.92
+      }
+    },
+    {
+      "scenario_id": "hd-03",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.7,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.13,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "hd-04",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.4,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.08,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "hd-05",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "carrier",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 2.8,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.56,
+        "share_of_speech_in_first_half": 0.72
+      }
+    },
+    {
+      "scenario_id": "hd-06",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "carrier",
+      "jev_timing_confidence": 0.96,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.5,
+        "separate_bursts_of_speech": 2,
+        "share_of_time_speaking": 0.73,
+        "share_of_speech_in_first_half": 0.49
+      }
+    },
+    {
+      "scenario_id": "hd-07",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.95,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.3,
+        "separate_bursts_of_speech": 2,
+        "share_of_time_speaking": 0.7,
+        "share_of_speech_in_first_half": 0.43
+      }
+    },
+    {
+      "scenario_id": "hd-08",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 0.84,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.4,
+        "separate_bursts_of_speech": 2,
+        "share_of_time_speaking": 0.58,
+        "share_of_speech_in_first_half": 0.65
+      }
+    },
+    {
+      "scenario_id": "am-01",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.3,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.06,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "am-02",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.82,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 0.7,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.14,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "am-03",
+      "expected": "human",
+      "jev": "human",
+      "jev_timing": "human",
+      "jev_timing_option": "human",
+      "jev_timing_confidence": 1.0,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 1.4,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.29,
+        "share_of_speech_in_first_half": 1.0
+      }
+    },
+    {
+      "scenario_id": "am-04",
+      "expected": "voicemail",
+      "jev": "voicemail",
+      "jev_timing": "voicemail",
+      "jev_timing_option": "voicemail",
+      "jev_timing_confidence": 0.63,
+      "timing": {
+        "listened_for_seconds": 5.0,
+        "first_speech_after_seconds": 0.5,
+        "first_speech_lasted_seconds": 2.7,
+        "separate_bursts_of_speech": 1,
+        "share_of_time_speaking": 0.55,
+        "share_of_speech_in_first_half": 0.73
+      }
+    }
+  ],
+  "threshold_sweep": [
+    {
+      "threshold": 0.5,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0
+    },
+    {
+      "threshold": 0.6,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0
+    },
+    {
+      "threshold": 0.7,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1
+    },
+    {
+      "threshold": 0.75,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1
+    },
+    {
+      "threshold": 0.8,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2
+    },
+    {
+      "threshold": 0.85,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2
+    },
+    {
+      "threshold": 0.9,
+      "correct": 16,
+      "wrong": 1,
+      "declined": 3
+    }
+  ],
+  "per_scenario": [
+    {
+      "scenario_id": "vm-01",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.97
+    },
+    {
+      "scenario_id": "vm-02",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.98
+    },
+    {
+      "scenario_id": "vm-03",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "vm-04",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.9
+    },
+    {
+      "scenario_id": "hu-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hu-02",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hu-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.85
+    },
+    {
+      "scenario_id": "hu-04",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "hd-02",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.94
+    },
+    {
+      "scenario_id": "hd-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-04",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-05",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "carrier",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-06",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "carrier",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "hd-07",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.96
+    },
+    {
+      "scenario_id": "hd-08",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.77
+    },
+    {
+      "scenario_id": "am-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "am-02",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.97
+    },
+    {
+      "scenario_id": "am-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "am-04",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.63
+    }
+  ]
+}

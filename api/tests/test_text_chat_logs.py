@@ -119,7 +119,7 @@ def test_build_text_chat_realtime_feedback_events_uses_visible_branch_and_dedupe
     ]
     assert events[0]["payload"]["node_name"] == "Start"
     assert events[2]["payload"]["text"] == "Find Abhishek"
-    assert events[4]["payload"]["result"] == "{'contact_id': 42}"
+    assert events[4]["payload"]["result"] == '{"contact_id": 42}'
     assert all(
         event.get("payload", {}).get("error") != "Should be hidden after rewind"
         for event in events

@@ -8,6 +8,19 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from api.db.models import WorkflowRunModel
 from api.enums import WORKFLOW_RUN_MODES_BY_CHANNEL, CallType
+from api.services.workflow.doctor.contracts import INTERNAL_RUN_MODES
+
+
+def exclude_internal_runs(query):
+    """Drop internal runs (e.g. Doctor replays) from a workflow-run query.
+
+    Apply this to every customer-facing run list, run count and CSV/daily
+    report query, and to the Doctor's own input. Do NOT apply it to
+    single-run lookups by id: internal code (replay, verification) needs them.
+
+    ``workflow_runs.mode`` is NOT NULL, so ``NOT IN`` never drops real rows.
+    """
+    return query.where(WorkflowRunModel.mode.not_in(INTERNAL_RUN_MODES))
 
 
 def get_workflow_run_order_clause(

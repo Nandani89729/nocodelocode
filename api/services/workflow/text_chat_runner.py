@@ -55,6 +55,10 @@ from api.services.pipecat.worker_runner import (
     run_pipeline_worker,
     wait_for_pipeline_worker_started,
 )
+from api.services.workflow.doctor.contracts import (
+    DOCTOR_REPLAY_RUN_MODE,
+    USAGE_CONTEXT_DOCTOR_REPLAY,
+)
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.initial_context import merge_external_initial_context
 from api.services.workflow.pipecat_engine import (
@@ -62,6 +66,7 @@ from api.services.workflow.pipecat_engine import (
     FINAL_EXTRACTION_TIMEOUT_SECONDS,
     PipecatEngine,
 )
+from api.services.workflow.tools.dry_run import ToolDryRun
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 TEXT_CHAT_CHECKPOINT_VERSION = 1
@@ -509,6 +514,7 @@ async def execute_text_chat_pending_turn(
 
     run_definition = workflow_run.definition
     run_configs = run_definition.workflow_configurations or {}
+    is_doctor_replay = getattr(workflow_run, "mode", None) == DOCTOR_REPLAY_RUN_MODE
 
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
@@ -538,7 +544,15 @@ async def execute_text_chat_pending_turn(
         initial_context=base_initial_context,
     )
 
-    llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
+    if is_doctor_replay:
+        # D21: replay turns are metered on their own usage line.
+        llm = create_llm_service(
+            user_config,
+            correlation_id=mps_correlation_id,
+            usage_context=USAGE_CONTEXT_DOCTOR_REPLAY,
+        )
+    else:
+        llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
     inference_llm = llm
     call_dispositions = WorkflowConfigurationDefaults.model_validate(
         {"call_dispositions": run_configs.get("call_dispositions") or []}
@@ -580,8 +594,11 @@ async def execute_text_chat_pending_turn(
         "current_node_id"
     ) is None and not any(turn.get("status") == "completed" for turn in turns[:-1])
     start_node = workflow_graph.nodes.get(workflow_graph.start_node_id)
+    # Doctor replays (O1) never fetch: they reuse the source call's recorded,
+    # already-hydrated initial_context, so no request leaves Dograh.
     if (
-        is_initial_node_opening
+        not is_doctor_replay
+        and is_initial_node_opening
         and start_node
         and start_node.should_run_pre_call_fetch(None)
         and start_node.pre_call_fetch_url
@@ -678,6 +695,12 @@ async def execute_text_chat_pending_turn(
         run_transition_variable_extraction_in_background=False,
     )
     engine._gathered_context = dict(base_checkpoint["gathered_context"])
+    if is_doctor_replay:
+        # O1: external tools (HTTP/MCP/transfer) return recorded or synthetic
+        # results; built-ins, KB retrieval and end_call still run for real.
+        engine.tool_dry_run = ToolDryRun.from_annotations(
+            getattr(workflow_run, "annotations", None)
+        )
     capture_processor = _TextChatCaptureProcessor(response_window, context, engine)
     node_transition_events = capture_processor.events
 

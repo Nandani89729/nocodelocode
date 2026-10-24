@@ -91,7 +91,7 @@ async def download_workflow_artifact(
         storage = get_storage_for_backend(
             artifact_storage_backend or workflow_run.storage_backend
         )
-    except ValueError as e:
+    except ValueError:
         logger.error(f"Invalid storage backend: {workflow_run.storage_backend}")
         raise HTTPException(status_code=500, detail="Storage configuration error")
 

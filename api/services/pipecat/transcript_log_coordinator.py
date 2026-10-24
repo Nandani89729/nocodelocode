@@ -265,6 +265,7 @@ class TranscriptLogCoordinator:
             final=True,
             timestamp=side.speech_start_timestamp or side.transcript_timestamp,
             end_timestamp=side.speech_end_timestamp,
+            turn_interrupted=state.interrupted if state.ended else None,
         )
         await self._append(state, side, event)
 
@@ -276,6 +277,7 @@ class TranscriptLogCoordinator:
             text=side.text,
             timestamp=side.speech_start_timestamp or side.transcript_timestamp,
             end_timestamp=side.speech_end_timestamp,
+            turn_interrupted=state.interrupted if state.ended else None,
         )
         await self._append(state, side, event)
 

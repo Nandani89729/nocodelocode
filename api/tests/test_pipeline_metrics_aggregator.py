@@ -253,3 +253,31 @@ async def test_keeps_processor_and_model_totals_separate_and_resets(aggregator):
 
     aggregator.reset_metrics()
     assert aggregator.get_all_usage_metrics_serialized()["llm"] == {}
+
+
+async def test_first_turn_llm_prompt_tokens_recorded_once(aggregator):
+    """Doctor Layer 0 reads first_turn_llm to detect missing system prompts."""
+    await _report(
+        aggregator,
+        LLMTokenUsage(prompt_tokens=15, completion_tokens=10, total_tokens=25),
+    )
+    await _report(
+        aggregator,
+        LLMTokenUsage(prompt_tokens=3000, completion_tokens=40, total_tokens=3040),
+    )
+
+    usage = aggregator.get_all_usage_metrics_serialized()
+    assert usage["first_turn_llm"] == {
+        "prompt_tokens": 15,
+        "processor": PROCESSOR,
+        "model": MODEL,
+    }
+    # Aggregates are unchanged by the new field.
+    assert usage["llm"][USAGE_KEY]["prompt_tokens"] == 3015
+
+    aggregator.reset_metrics()
+    assert "first_turn_llm" not in aggregator.get_all_usage_metrics_serialized()
+
+
+async def test_no_llm_usage_means_no_first_turn_field(aggregator):
+    assert "first_turn_llm" not in aggregator.get_all_usage_metrics_serialized()

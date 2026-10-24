@@ -30,6 +30,12 @@ from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
     tool_to_function_schema,
 )
+from api.services.workflow.tools.dry_run import (
+    SYNTHETIC_HTTP_RESULT,
+    SYNTHETIC_MCP_RESULT,
+    SYNTHETIC_TRANSFER_RESULT,
+    get_tool_dry_run,
+)
 from api.services.workflow.tools.transfer_resolver import (
     TransferResolutionError,
     resolve_transfer_config,
@@ -412,13 +418,22 @@ class CustomToolManager:
                         custom_message, mute_user=True
                     )
 
-                result = await execute_http_tool(
-                    tool=tool,
-                    arguments=function_call_params.arguments,
-                    call_context_vars=self._engine._call_context_vars,
-                    gathered_context_vars=self._engine._gathered_context,
-                    organization_id=await self.get_organization_id(),
-                )
+                dry_run = get_tool_dry_run(self._engine)
+                if dry_run is not None:
+                    # Doctor replay (O1): never call the customer's API.
+                    result = dry_run.result_for(
+                        function_name,
+                        function_call_params.arguments,
+                        synthetic=SYNTHETIC_HTTP_RESULT,
+                    )
+                else:
+                    result = await execute_http_tool(
+                        tool=tool,
+                        arguments=function_call_params.arguments,
+                        call_context_vars=self._engine._call_context_vars,
+                        gathered_context_vars=self._engine._gathered_context,
+                        organization_id=await self.get_organization_id(),
+                    )
 
                 await function_call_params.result_callback(result)
 
@@ -441,9 +456,18 @@ class CustomToolManager:
             logger.info(f"MCP Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
             try:
-                result = await session.call(
-                    function_name, function_call_params.arguments or {}
-                )
+                dry_run = get_tool_dry_run(self._engine)
+                if dry_run is not None:
+                    # Doctor replay (O1): never call the customer's MCP server.
+                    result = dry_run.result_for(
+                        function_name,
+                        function_call_params.arguments,
+                        synthetic=SYNTHETIC_MCP_RESULT,
+                    )
+                else:
+                    result = await session.call(
+                        function_name, function_call_params.arguments or {}
+                    )
                 await function_call_params.result_callback(result)
             except Exception as e:
                 logger.error(f"MCP tool '{function_name}' failed: {e}")
@@ -636,6 +660,20 @@ class CustomToolManager:
             )
 
             try:
+                dry_run = get_tool_dry_run(self._engine)
+                if dry_run is not None:
+                    # Doctor replay (O1): no resolver fetch, no provider call.
+                    await self._handle_transfer_result(
+                        dry_run.result_for(
+                            function_name,
+                            function_call_params.arguments,
+                            synthetic=SYNTHETIC_TRANSFER_RESULT,
+                        ),
+                        function_call_params,
+                        properties,
+                    )
+                    return
+
                 # Get the transfer call configuration
                 config = tool.definition.get("config", {})
                 destination = config.get("destination", "")

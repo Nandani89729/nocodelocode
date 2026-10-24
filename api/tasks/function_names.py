@@ -6,3 +6,6 @@ class FunctionNames:
     PROCESS_KNOWLEDGE_BASE_DOCUMENT = "process_knowledge_base_document"
     DELIVER_WEBHOOK = "deliver_webhook"
     COMPLETE_INACTIVE_TEXT_CHAT_SESSION = "complete_inactive_text_chat_session"
+    ANALYZE_WORKFLOW_CALLS = "analyze_workflow_calls"
+    VERIFY_DOCTOR_FIX = "verify_doctor_fix"
+    SELF_IMPROVE_ITERATION = "self_improve_iteration"

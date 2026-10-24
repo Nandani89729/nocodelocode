@@ -6,7 +6,11 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from api.db.base_client import BaseDBClient
-from api.db.filters import apply_workflow_run_filters, get_workflow_run_order_clause
+from api.db.filters import (
+    apply_workflow_run_filters,
+    exclude_internal_runs,
+    get_workflow_run_order_clause,
+)
 from api.db.models import (
     OrganizationModel,
     UserModel,
@@ -140,6 +144,7 @@ class WorkflowRunClient(BaseDBClient):
                     UserModel.selected_organization_id == OrganizationModel.id,
                 )
             )
+            base_query = exclude_internal_runs(base_query)
 
             # Apply filters
             base_query = apply_workflow_run_filters(base_query, filters)
@@ -308,6 +313,8 @@ class WorkflowRunClient(BaseDBClient):
             elif user_id:
                 # Fallback to user_id for backwards compatibility
                 base_query = base_query.where(WorkflowModel.user_id == user_id)
+
+            base_query = exclude_internal_runs(base_query)
 
             # Apply filters
             base_query = apply_workflow_run_filters(base_query, filters)

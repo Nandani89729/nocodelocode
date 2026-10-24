@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -36,18 +37,35 @@ def _edge_field_names() -> list[str]:
     return list(EdgeDataDTO.model_fields.keys())
 
 
-async def _invoke(request: dict[str, Any]) -> dict[str, Any]:
-    proc = await asyncio.create_subprocess_exec(
-        "node",
-        str(_VALIDATOR_ENTRY),
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+def _run_blocking(payload: bytes) -> tuple[int, bytes, bytes]:
+    completed = subprocess.run(
+        ["node", str(_VALIDATOR_ENTRY)], input=payload, capture_output=True
     )
-    stdout, stderr = await proc.communicate(json.dumps(request).encode("utf-8"))
-    if proc.returncode != 0 and not stdout:
+    return completed.returncode, completed.stdout, completed.stderr
+
+
+async def _run_node(payload: bytes) -> tuple[int, bytes, bytes]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "node",
+            str(_VALIDATOR_ENTRY),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except NotImplementedError:
+        # Windows SelectorEventLoop (e.g. `uvicorn --reload`) cannot spawn
+        # subprocesses; fall back to a blocking call off the event loop.
+        return await asyncio.to_thread(_run_blocking, payload)
+    stdout, stderr = await proc.communicate(payload)
+    return proc.returncode, stdout, stderr
+
+
+async def _invoke(request: dict[str, Any]) -> dict[str, Any]:
+    returncode, stdout, stderr = await _run_node(json.dumps(request).encode("utf-8"))
+    if returncode != 0 and not stdout:
         raise TsBridgeError(
-            f"ts_validator exited {proc.returncode}: "
+            f"ts_validator exited {returncode}: "
             f"{stderr.decode('utf-8', errors='replace')}"
         )
     try:

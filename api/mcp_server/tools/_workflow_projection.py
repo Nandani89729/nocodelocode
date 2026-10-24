@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from api.db import db_client
 from api.mcp_server.ts_bridge import generate_code
+from api.services.configuration.masking import mask_workflow_definition
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,10 @@ async def select_workflow_projection_source(workflow: Any) -> WorkflowProjection
 
 async def project_workflow_to_sdk_view(workflow: Any) -> dict[str, Any]:
     source = await select_workflow_projection_source(workflow)
-    code = await generate_code(source.payload or {}, workflow_name=workflow.name or "")
+    # Never expose integration secrets to external MCP clients; the save path
+    # merges masked values back with the stored keys (merge_workflow_api_keys).
+    masked = mask_workflow_definition(source.payload) or {}
+    code = await generate_code(masked, workflow_name=workflow.name or "")
     return {
         "name": workflow.name or "",
         "version": source.version,

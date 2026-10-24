@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { createWorkflowFromTemplateApiV1WorkflowCreateTemplatePost } from '@/client/sdk.gen';
+import { CopilotPanel } from '@/components/copilot/CopilotPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -17,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
@@ -28,6 +30,7 @@ export default function CreateWorkflowPage() {
     const [error, setError] = useState<string | null>(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [workflowId, setWorkflowId] = useState<string | null>(null);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
     const [callType, setCallType] = useState<'inbound' | 'outbound'>('inbound');
     const [useCase, setUseCase] = useState('');
@@ -87,6 +90,22 @@ export default function CreateWorkflowPage() {
                     <p className="text-muted-foreground">
                         Tell us about your use case and we&apos;ll create a customized voice agent for you
                     </p>
+                </div>
+
+                <div className="mb-6 flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1 text-sm">
+                        <p className="font-medium">Build with Copilot</p>
+                        <p className="text-muted-foreground">
+                            Describe the agent in a chat. The copilot plans it with you and creates a draft workflow.
+                        </p>
+                    </div>
+                    <Button
+                        variant="outline"
+                        className="min-h-11 shrink-0 md:min-h-9"
+                        onClick={() => setIsCopilotOpen(true)}
+                    >
+                        Build with Copilot
+                    </Button>
                 </div>
 
                 <Card>
@@ -160,6 +179,13 @@ export default function CreateWorkflowPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Sheet open={isCopilotOpen} onOpenChange={setIsCopilotOpen}>
+                <SheetContent side="right" className="w-full max-w-none gap-0 p-0 sm:max-w-none md:max-w-[480px]">
+                    <SheetTitle className="sr-only">Copilot</SheetTitle>
+                    <CopilotPanel workflowId={null} headerClassName="pr-12" />
+                </SheetContent>
+            </Sheet>
 
             {/* Loading Overlay */}
             {isLoading && (

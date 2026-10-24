@@ -298,7 +298,7 @@ def get_ice_servers(user_id: Optional[str] = None) -> List[RTCIceServer]:
             )
         )
         logger.warning(
-            f"TURN server configured with static credentials (consider using TURN_SECRET for time-limited auth)"
+            "TURN server configured with static credentials (consider using TURN_SECRET for time-limited auth)"
         )
 
     return servers

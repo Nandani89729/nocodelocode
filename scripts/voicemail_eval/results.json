@@ -1,0 +1,284 @@
+{
+  "n": 20,
+  "arms": [
+    {
+      "name": "gpt-4.1 (incumbent)",
+      "n": 20,
+      "correct": 20,
+      "wrong": 0,
+      "declined": 0,
+      "accuracy_of_answered": "100%",
+      "p50_ms": 1528,
+      "p95_ms": 2267
+    },
+    {
+      "name": "jev (no gate)",
+      "n": 20,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 511,
+      "p95_ms": 658
+    },
+    {
+      "name": "jev @ conf>=0.75",
+      "n": 20,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1,
+      "accuracy_of_answered": "95%",
+      "p50_ms": 511,
+      "p95_ms": 658
+    }
+  ],
+  "threshold_sweep": [
+    {
+      "threshold": 0.5,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0
+    },
+    {
+      "threshold": 0.6,
+      "correct": 19,
+      "wrong": 1,
+      "declined": 0
+    },
+    {
+      "threshold": 0.7,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1
+    },
+    {
+      "threshold": 0.75,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1
+    },
+    {
+      "threshold": 0.8,
+      "correct": 18,
+      "wrong": 1,
+      "declined": 1
+    },
+    {
+      "threshold": 0.85,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2
+    },
+    {
+      "threshold": 0.9,
+      "correct": 16,
+      "wrong": 1,
+      "declined": 3
+    }
+  ],
+  "truncation_sweep": [
+    {
+      "seconds": 1.0,
+      "no_speech": 0,
+      "correct": 16,
+      "wrong": 2,
+      "declined": 2
+    },
+    {
+      "seconds": 2.0,
+      "no_speech": 0,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2
+    },
+    {
+      "seconds": 3.0,
+      "no_speech": 0,
+      "correct": 17,
+      "wrong": 1,
+      "declined": 2
+    }
+  ],
+  "per_scenario": [
+    {
+      "scenario_id": "vm-01",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.96
+    },
+    {
+      "scenario_id": "vm-02",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.98
+    },
+    {
+      "scenario_id": "vm-03",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "vm-04",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.91
+    },
+    {
+      "scenario_id": "hu-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hu-02",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hu-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.84
+    },
+    {
+      "scenario_id": "hu-04",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.98
+    },
+    {
+      "scenario_id": "hd-02",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.96
+    },
+    {
+      "scenario_id": "hd-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-04",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-05",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "carrier",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "hd-06",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "carrier",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "hd-07",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.96
+    },
+    {
+      "scenario_id": "hd-08",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.85
+    },
+    {
+      "scenario_id": "am-01",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 1.0
+    },
+    {
+      "scenario_id": "am-02",
+      "expected": "voicemail",
+      "live_detector": "human",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.98
+    },
+    {
+      "scenario_id": "am-03",
+      "expected": "human",
+      "live_detector": "human",
+      "gpt41": "human",
+      "jev": "human",
+      "jev_option": "human",
+      "jev_confidence": 0.99
+    },
+    {
+      "scenario_id": "am-04",
+      "expected": "voicemail",
+      "live_detector": "voicemail",
+      "gpt41": "voicemail",
+      "jev": "voicemail",
+      "jev_option": "voicemail",
+      "jev_confidence": 0.64
+    }
+  ]
+}

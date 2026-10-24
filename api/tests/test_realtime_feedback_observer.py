@@ -258,6 +258,7 @@ async def test_turn_log_handlers_persist_user_message_added_events():
         "text": "Hi there",
         "final": True,
         "timestamp": "2026-01-01T00:00:00+00:00",
+        "turn_interrupted": False,
     }
     assert events[0]["turn"] == 1
     assert events[0]["node_id"] == "node-a"
@@ -405,6 +406,7 @@ async def test_user_speaking_frames_define_full_multi_segment_turn_envelope():
         "final": True,
         "timestamp": "2026-07-14T09:55:22.132+00:00",
         "end_timestamp": "2026-07-14T09:55:29.994+00:00",
+        "turn_interrupted": False,
     }
 
 
@@ -497,6 +499,7 @@ async def test_interrupted_bot_transcript_keeps_the_interrupted_turn_interval():
         "text": "A minivan, too easy,",
         "timestamp": "2026-07-14T13:33:02.254+00:00",
         "end_timestamp": "2026-07-14T13:33:03.817+00:00",
+        "turn_interrupted": True,
     }
 
     await coordinator.record_bot_started_speaking(3, "2026-07-14T13:33:06.654+00:00")

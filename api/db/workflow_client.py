@@ -7,6 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import load_only, selectinload
 
 from api.db.base_client import BaseDBClient
+from api.db.filters import exclude_internal_runs
 from api.db.models import WorkflowDefinitionModel, WorkflowModel, WorkflowRunModel
 
 
@@ -814,8 +815,10 @@ class WorkflowClient(BaseDBClient):
         """Get the count of runs for a workflow."""
         async with self.async_session() as session:
             result = await session.execute(
-                select(func.count(WorkflowRunModel.id)).where(
-                    WorkflowRunModel.workflow_id == workflow_id
+                exclude_internal_runs(
+                    select(func.count(WorkflowRunModel.id)).where(
+                        WorkflowRunModel.workflow_id == workflow_id
+                    )
                 )
             )
             return result.scalar() or 0
@@ -864,12 +867,12 @@ class WorkflowClient(BaseDBClient):
 
         async with self.async_session() as session:
             result = await session.execute(
-                select(
-                    WorkflowRunModel.workflow_id,
-                    func.count(WorkflowRunModel.id).label("run_count"),
-                )
-                .where(WorkflowRunModel.workflow_id.in_(workflow_ids))
-                .group_by(WorkflowRunModel.workflow_id)
+                exclude_internal_runs(
+                    select(
+                        WorkflowRunModel.workflow_id,
+                        func.count(WorkflowRunModel.id).label("run_count"),
+                    ).where(WorkflowRunModel.workflow_id.in_(workflow_ids))
+                ).group_by(WorkflowRunModel.workflow_id)
             )
             rows = result.all()
 

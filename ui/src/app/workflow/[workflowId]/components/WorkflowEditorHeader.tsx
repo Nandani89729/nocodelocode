@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { useSidebar } from "@/components/ui/sidebar";
 import { copyTextToClipboard } from "@/lib/clipboard";
+import { copilotButtonLabel, readyAnnouncement } from "@/lib/self-improve/format";
 
 interface WorkflowEditorHeaderProps {
     workflowName: string;
@@ -40,6 +41,11 @@ interface WorkflowEditorHeaderProps {
     user: { id: string; email?: string };
     onPhoneCallClick: () => void;
     onTestAgentClick: () => void;
+    /** Toggles the Agent Copilot panel; the button is hidden when omitted. */
+    onCopilotClick?: () => void;
+    isCopilotOpen?: boolean;
+    /** Self-improve rounds waiting for review: "Copilot · 1 to review" (DS-2). */
+    copilotReviewCount?: number;
     onHistoryClick: () => void;
     activeVersionLabel?: string;
     isViewingHistoricalVersion: boolean;
@@ -57,6 +63,9 @@ export const WorkflowEditorHeader = ({
     saveWorkflow,
     onPhoneCallClick,
     onTestAgentClick,
+    onCopilotClick,
+    isCopilotOpen = false,
+    copilotReviewCount = 0,
     onHistoryClick,
     activeVersionLabel,
     isViewingHistoricalVersion,
@@ -428,6 +437,22 @@ export const WorkflowEditorHeader = ({
                     <Bot className="w-4 h-4" />
                     Test Agent
                 </Button>
+
+                {onCopilotClick && (
+                    <>
+                        <Button
+                            variant="outline"
+                            className="bg-transparent border-[#3a3a3a] hover:bg-[#2a2a2a] text-white aria-pressed:bg-[#2a2a2a] tabular-nums"
+                            aria-pressed={isCopilotOpen}
+                            onClick={onCopilotClick}
+                        >
+                            {copilotButtonLabel(copilotReviewCount)}
+                        </Button>
+                        <span className="sr-only" aria-live="polite">
+                            {readyAnnouncement(copilotReviewCount)}
+                        </span>
+                    </>
+                )}
 
                 {/* Save button (only shown when editing the draft) */}
                 {!isViewingHistoricalVersion && (

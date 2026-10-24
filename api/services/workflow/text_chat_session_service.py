@@ -14,6 +14,7 @@ from api.db.workflow_run_text_session_client import (
 )
 from api.enums import WorkflowRunState
 from api.services.workflow.disposition_mapping import map_disposition
+from api.services.workflow.doctor.contracts import DOCTOR_REPLAY_RUN_MODE
 from api.services.workflow.text_chat_logs import (
     build_text_chat_realtime_feedback_events,
 )
@@ -51,6 +52,12 @@ class TextChatPendingTurnLostError(Exception):
 
 class TextChatTurnNotFoundError(Exception):
     """Raised when a requested rewind cursor does not exist in the session."""
+
+
+def is_doctor_replay_session(text_session: WorkflowRunTextSessionModel) -> bool:
+    """True for Agent Doctor replay runs (O1): no post-call side effects."""
+    workflow_run = getattr(text_session, "workflow_run", None)
+    return getattr(workflow_run, "mode", None) == DOCTOR_REPLAY_RUN_MODE
 
 
 def default_text_chat_session_data() -> dict[str, Any]:
@@ -266,9 +273,13 @@ async def complete_text_chat_session(
     the conflict is retried once against the state that won.
     """
     workflow_run = text_session.workflow_run
+    # Doctor replays (O1) skip post-call work: no integrations, webhooks, QA,
+    # campaign callbacks or transcript upload, and no final extraction.
+    is_replay = is_doctor_replay_session(text_session)
     if workflow_run.is_completed:
         # Preserve the existing idempotent behavior for repeated end requests.
-        await _enqueue_text_chat_completion(run_id)
+        if not is_replay:
+            await _enqueue_text_chat_completion(run_id)
         return await _reload_text_chat_session(run_id)
 
     completed_at = completed_at or datetime.now(UTC)
@@ -281,17 +292,21 @@ async def complete_text_chat_session(
     # Text chat has no engine here, and a chat the user walks away from never
     # transitions, so without this the node's variables are never extracted at
     # all -- and the webhooks rendered from gathered_context ship blanks.
-    extracted = await extract_text_chat_final_variables(
-        workflow_run_id=run_id,
-        workflow_id=workflow_run.workflow_id,
-        # The organization this call was already authorized against, so the
-        # helper's unscoped run read can be validated rather than trusted.
-        organization_id=workflow_run.workflow.organization_id,
-        checkpoint=text_session.checkpoint,
-        # Completion can win while a turn is still pending, and that turn's user
-        # message is only in session_data until it executes. The transcript
-        # reads it from there; so must extraction.
-        session_data=normalize_text_chat_session_data(text_session.session_data),
+    extracted = (
+        {}
+        if is_replay
+        else await extract_text_chat_final_variables(
+            workflow_run_id=run_id,
+            workflow_id=workflow_run.workflow_id,
+            # The organization this call was already authorized against, so the
+            # helper's unscoped run read can be validated rather than trusted.
+            organization_id=workflow_run.workflow.organization_id,
+            checkpoint=text_session.checkpoint,
+            # Completion can win while a turn is still pending, and that turn's
+            # user message is only in session_data until it executes. The
+            # transcript reads it from there; so must extraction.
+            session_data=normalize_text_chat_session_data(text_session.session_data),
+        )
     )
 
     # The snapshot this write is built from was read before the extraction
@@ -328,7 +343,8 @@ async def complete_text_chat_session(
         # round trip on an already-contended path is not worth the freshness.
         text_session = await _reload_text_chat_session(run_id)
         if text_session.workflow_run.is_completed:
-            await _enqueue_text_chat_completion(run_id)
+            if not is_replay:
+                await _enqueue_text_chat_completion(run_id)
             return text_session
         try:
             await db_client.complete_workflow_run_text_session(
@@ -348,6 +364,9 @@ async def complete_text_chat_session(
                 expected_revision=retry_error.expected_revision,
                 actual_revision=retry_error.actual_revision,
             ) from retry_error
+
+    if is_replay:
+        return await _reload_text_chat_session(run_id)
 
     completed_session_data = normalize_text_chat_session_data(text_session.session_data)
     completed_session_data["status"] = "completed"
@@ -445,8 +464,10 @@ async def execute_pending_text_chat_turn(
         ) from e
 
     if execution.is_completed:
-        await _upload_text_chat_transcript(run_id, feedback_events)
-        await _enqueue_text_chat_completion(run_id)
+        # Doctor replays (O1) end without post-call side effects.
+        if not is_doctor_replay_session(text_session):
+            await _upload_text_chat_transcript(run_id, feedback_events)
+            await _enqueue_text_chat_completion(run_id)
     else:
         await db_client.update_workflow_run(
             run_id,
@@ -638,6 +659,7 @@ __all__ = [
     "default_text_chat_session_data",
     "execute_pending_text_chat_turn",
     "initialize_text_chat_session",
+    "is_doctor_replay_session",
     "latest_completed_text_chat_turn_id",
     "normalize_text_chat_checkpoint",
     "normalize_text_chat_session_data",

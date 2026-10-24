@@ -6,7 +6,11 @@ from sqlalchemy import DateTime, and_, case, cast, func, or_, text, update
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
-from api.db.filters import apply_workflow_run_filters, get_workflow_run_order_clause
+from api.db.filters import (
+    apply_workflow_run_filters,
+    exclude_internal_runs,
+    get_workflow_run_order_clause,
+)
 from api.db.models import CampaignModel, QueuedRunModel, WorkflowModel, WorkflowRunModel
 from api.enums import WorkflowRunState
 from api.schemas.workflow import WorkflowRunResponseSchema
@@ -583,7 +587,7 @@ class CampaignClient(BaseDBClient):
             if not campaign:
                 raise ValueError(f"Campaign {campaign_id} not found")
 
-            query = (
+            query = exclude_internal_runs(
                 select(WorkflowRunModel)
                 .where(WorkflowRunModel.campaign_id == campaign_id)
                 .order_by(WorkflowRunModel.created_at.desc())
@@ -616,8 +620,10 @@ class CampaignClient(BaseDBClient):
                 raise ValueError(f"Campaign {campaign_id} not found")
 
             # Build base query
-            base_query = select(WorkflowRunModel).where(
-                WorkflowRunModel.campaign_id == campaign_id
+            base_query = exclude_internal_runs(
+                select(WorkflowRunModel).where(
+                    WorkflowRunModel.campaign_id == campaign_id
+                )
             )
 
             # Apply filters
@@ -1110,6 +1116,7 @@ class CampaignClient(BaseDBClient):
                 .where(*conditions)
                 .order_by(WorkflowRunModel.created_at.desc())
             )
+            query = exclude_internal_runs(query)
             result = await session.execute(query)
             return list(result.all())
 

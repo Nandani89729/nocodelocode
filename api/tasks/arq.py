@@ -12,7 +12,7 @@ from api.tasks.function_names import FunctionNames
 setup_logging()
 
 # Now import ARQ and task dependencies
-from arq import create_pool, cron
+from arq import create_pool, cron, func
 from arq.connections import ArqRedis, RedisSettings
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
@@ -57,12 +57,22 @@ REDIS_SETTINGS = RedisSettings(
     ssl_check_hostname=False if use_ssl else None,
 )
 
+from api.services.workflow.doctor.contracts import (
+    DOCTOR_ADMISSION_MAX_TRIES,
+    DOCTOR_JOB_TIMEOUT_SECONDS,
+)
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
 )
+from api.tasks.doctor import analyze_workflow_calls
+from api.tasks.doctor_verify import verify_doctor_fix
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.run_integrations import run_integrations_post_workflow_run
+from api.tasks.self_improve import (
+    self_improve_iteration,
+    sweep_stuck_self_improve_rounds,
+)
 from api.tasks.text_chat_inactivity import (
     complete_inactive_text_chat_session,
     sweep_inactive_text_chat_sessions,
@@ -80,6 +90,31 @@ class WorkerSettings:
         process_knowledge_base_document,
         deliver_webhook,
         complete_inactive_text_chat_session,
+        # Agent Doctor: long-running; non-blocking admission retries need more
+        # tries than arq's default of 5.
+        func(
+            analyze_workflow_calls,
+            name=FunctionNames.ANALYZE_WORKFLOW_CALLS,
+            timeout=DOCTOR_JOB_TIMEOUT_SECONDS,
+            max_tries=DOCTOR_ADMISSION_MAX_TRIES + 1,
+        ),
+        func(
+            verify_doctor_fix,
+            name=FunctionNames.VERIFY_DOCTOR_FIX,
+            timeout=DOCTOR_JOB_TIMEOUT_SECONDS,
+            max_tries=DOCTOR_ADMISSION_MAX_TRIES + 1,
+        ),
+        # Self-improve round: Doctor + one copilot turn under the Doctor's
+        # admission permit (RI-6). The job id is deterministic per round, so
+        # no result is kept: the stuck-round sweep must be able to
+        # re-enqueue a round whose job timed out (the job is idempotent).
+        func(
+            self_improve_iteration,
+            name=FunctionNames.SELF_IMPROVE_ITERATION,
+            timeout=DOCTOR_JOB_TIMEOUT_SECONDS,
+            max_tries=DOCTOR_ADMISSION_MAX_TRIES + 1,
+            keep_result=0,
+        ),
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -96,6 +131,14 @@ class WorkerSettings:
             sweep_inactive_text_chat_sessions,
             minute=set(range(0, 60, TEXT_CHAT_INACTIVITY_SWEEP_INTERVAL_MINUTES)),
             second=30,
+            run_at_startup=True,
+        ),
+        # Self-improve rounds stuck in queued/diagnosing/proposing past the
+        # job timeout (worker restart, lost job) are re-enqueued (O5).
+        cron(
+            sweep_stuck_self_improve_rounds,
+            minute=set(range(0, 60, 5)),
+            second=45,
             run_at_startup=True,
         ),
     ]

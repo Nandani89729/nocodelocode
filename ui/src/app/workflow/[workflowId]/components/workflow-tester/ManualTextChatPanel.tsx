@@ -2,6 +2,7 @@
 
 import { Loader2, Square } from "lucide-react";
 
+import { RegeneratePopover } from "@/components/doctor/RegeneratePopover";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ConversationItem } from "@/components/workflow/conversation";
@@ -105,6 +106,24 @@ export function ManualTextChatPanel({
                         pendingIndicator={sendingMessage ? <TypingIndicator /> : null}
                         className="py-1"
                         renderItemActions={(item: ConversationItem) => {
+                            if (
+                                item.kind === "message" &&
+                                item.role === "assistant" &&
+                                item.turnId &&
+                                item.tone !== "muted" &&
+                                session?.workflow_run_id
+                            ) {
+                                const turnIndex = turns.findIndex((candidate) => candidate.id === item.turnId);
+                                if (turnIndex < 0) return null;
+                                return (
+                                    <RegeneratePopover
+                                        workflowId={workflowId}
+                                        runId={session.workflow_run_id}
+                                        turn={turnIndex}
+                                        disabled={disabled || sendingMessage}
+                                    />
+                                );
+                            }
                             if (item.kind !== "message" || item.role !== "user" || !item.turnId) {
                                 return null;
                             }

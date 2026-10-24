@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload
 from api.db.base_client import BaseDBClient
 from api.db.filters import (
     apply_workflow_run_filters,
+    exclude_internal_runs,
     get_workflow_run_order_clause,
 )
 from api.db.models import (
@@ -20,6 +21,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import OrganizationConfigurationKey
+from api.services.workflow.doctor.contracts import DOCTOR_REPLAY_RUN_MODE
 from api.utils.recording_artifacts import get_recording_storage_key
 
 # Filters the org-wide usage surfaces accept. Anything else in the request is
@@ -189,6 +191,7 @@ class OrganizationUsageClient(BaseDBClient):
 
             # Apply filters using the common filter function
             query = apply_workflow_run_filters(query, sanitized_filters)
+            query = exclude_internal_runs(query)
 
             # Get total count
             count_result = await session.execute(
@@ -314,6 +317,7 @@ class OrganizationUsageClient(BaseDBClient):
                         sanitized_filters.append(filter_item)
 
             query = apply_workflow_run_filters(query, sanitized_filters)
+            query = exclude_internal_runs(query)
 
             result = await session.execute(query)
             return list(result.all())
@@ -364,24 +368,46 @@ class OrganizationUsageClient(BaseDBClient):
                 func.timezone(user_timezone, WorkflowRunModel.created_at), Date
             )
 
+            seconds_expr = func.sum(
+                WorkflowRunModel.usage_info["call_duration_seconds"].as_float()
+            )
+            in_period = (
+                WorkflowModel.organization_id == organization_id,
+                WorkflowRunModel.created_at >= start_date,
+                WorkflowRunModel.created_at <= end_date,
+                WorkflowRunModel.is_completed == True,
+            )
+
+            # Per-day rows are customer calls only; Doctor replay runs are
+            # reported on their own line below (D21) instead of being hidden.
             daily_usage = await session.execute(
-                select(
-                    date_expr.label("date"),
-                    func.sum(
-                        WorkflowRunModel.usage_info["call_duration_seconds"].as_float()
-                    ).label("total_seconds"),
-                    func.count(WorkflowRunModel.id).label("call_count"),
-                )
-                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
-                .where(
-                    WorkflowModel.organization_id == organization_id,
-                    WorkflowRunModel.created_at >= start_date,
-                    WorkflowRunModel.created_at <= end_date,
-                    WorkflowRunModel.is_completed == True,
+                exclude_internal_runs(
+                    select(
+                        date_expr.label("date"),
+                        seconds_expr.label("total_seconds"),
+                        func.count(WorkflowRunModel.id).label("call_count"),
+                    )
+                    .join(
+                        WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id
+                    )
+                    .where(*in_period)
                 )
                 .group_by(date_expr)
                 .order_by(date_expr.desc())
             )
+            replay_row = (
+                await session.execute(
+                    select(
+                        seconds_expr.label("total_seconds"),
+                        func.count(WorkflowRunModel.id).label("call_count"),
+                    )
+                    .join(
+                        WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id
+                    )
+                    .where(*in_period)
+                    .where(WorkflowRunModel.mode == DOCTOR_REPLAY_RUN_MODE)
+                )
+            ).one()
 
             breakdown = []
             total_minutes = 0
@@ -408,8 +434,23 @@ class OrganizationUsageClient(BaseDBClient):
                     }
                 )
 
+            replay_seconds = replay_row.total_seconds or 0
+            replay_cost_usd = replay_seconds * price_per_second_usd
+            replay_tokens = replay_cost_usd * 100
+            total_minutes += replay_seconds / 60
+            total_cost_usd += replay_cost_usd
+            total_dograh_tokens += replay_tokens
+
             return {
                 "breakdown": breakdown,
+                # Agent Doctor verification replays, billed to the org (D21).
+                # Included in the totals below, never in `breakdown`.
+                "doctor_replay": {
+                    "minutes": round(replay_seconds / 60, 1),
+                    "cost_usd": round(replay_cost_usd, 2),
+                    "dograh_tokens": round(replay_tokens, 0),
+                    "call_count": replay_row.call_count or 0,
+                },
                 "total_minutes": round(total_minutes, 1),
                 "total_cost_usd": round(total_cost_usd, 2),
                 "total_dograh_tokens": round(total_dograh_tokens, 0),

@@ -1,6 +1,7 @@
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
 
+from api.services.self_improve.counting import count_completed_run
 from api.services.telephony.external_pbx_writeback import (
     sync_external_pbx_call_record,
 )
@@ -56,5 +57,14 @@ async def process_workflow_completion(
         logger.error(
             f"Error writing back to external PBX for workflow {workflow_run_id}: {e}"
         )
+
+    # Self-improve (M2b): count a real conversation toward its workflow's
+    # window and start a round when it fills. Fast (one run's logs, a row
+    # lock) and independent of the steps above, so it runs after them and
+    # can never break them.
+    try:
+        await count_completed_run(workflow_run_id)
+    except Exception as e:
+        logger.error(f"Error counting run {workflow_run_id} for Self-improve: {e}")
 
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

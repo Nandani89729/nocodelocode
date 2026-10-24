@@ -52,6 +52,8 @@ if TYPE_CHECKING:
     from pipecat.services.openai.llm import OpenAILLMService
     from pipecat.utils.tracing.tracing_context import TracingContext
 
+    from api.services.workflow.tools.dry_run import ToolDryRun
+
     LLMService = Union[OpenAILLMService, AnthropicLLMService, GoogleLLMService]
 
 import asyncio
@@ -125,6 +127,11 @@ class NodeOpeningResult:
 
 
 class PipecatEngine:
+    #: Set only by the text-chat runner for ``doctor_replay`` runs (O1): external
+    #: tools return recorded/synthetic results and no MCP session is opened.
+    #: ``None`` (every normal run) leaves tool execution untouched.
+    tool_dry_run: Optional["ToolDryRun"] = None
+
     def __init__(
         self,
         *,
@@ -2010,6 +2017,10 @@ class PipecatEngine:
         )
 
         agent = agent or self.active_agent
+        if self.tool_dry_run is not None:
+            # Doctor replay (O1): connecting to an MCP server is an outbound
+            # request, so replays run without MCP sessions (and MCP tools).
+            return
         try:
             tool_uuids: set[str] = set()
             for node in agent.workflow.nodes.values():

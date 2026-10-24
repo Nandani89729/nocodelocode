@@ -50,6 +50,7 @@ from api.services.pipecat.pipeline_metrics_aggregator import PipelineMetricsAggr
 from api.services.pipecat.pre_call_fetch import execute_pre_call_fetch
 from api.services.pipecat.processors.answer_supervisor import AnswerSupervisor
 from api.services.pipecat.realtime_feedback_events import (
+    build_latency_breakdown_event,
     build_node_transition_event,
 )
 from api.services.pipecat.realtime_feedback_observer import (
@@ -1260,6 +1261,17 @@ async def _run_pipeline_impl(
                 await in_memory_logs_buffer.append(message)
             except Exception as e:
                 logger.error(f"Failed to append latency to logs buffer: {e}")
+
+        # Persist the per-service breakdown (STT/LLM/TTS TTFB, user turn time,
+        # function-call latency) so post-call analysis can attribute latency.
+        @task.user_bot_latency_observer.event_handler("on_latency_breakdown")
+        async def on_latency_breakdown(observer, breakdown):
+            try:
+                await in_memory_logs_buffer.append(
+                    build_latency_breakdown_event(breakdown.model_dump(mode="json"))
+                )
+            except Exception as e:
+                logger.error(f"Failed to append latency breakdown to logs buffer: {e}")
 
     # Register turn log handlers for all call types (WebRTC and telephony)
     register_turn_log_handlers(

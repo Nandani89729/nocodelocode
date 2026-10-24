@@ -55,6 +55,12 @@ from api.services.workflow.configuration_policy import (
     WorkflowConfigurationNotFoundError,
     apply_external_pbx_mapping_policy,
 )
+from api.services.workflow.draft_validation import (
+    node_instance_validation_errors as _node_instance_validation_errors,
+)
+from api.services.workflow.draft_validation import (
+    transition_tool_name_validation_errors as _transition_tool_name_validation_errors,
+)
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
@@ -74,11 +80,7 @@ from api.services.workflow.trigger_paths import (
     trigger_path_to_node_id,
     validate_trigger_paths,
 )
-from api.services.workflow.workflow_graph import (
-    WorkflowGraph,
-    validate_node_instance_constraints,
-    validate_unique_transition_tool_names,
-)
+from api.services.workflow.workflow_graph import WorkflowGraph
 from api.utils.artifacts import artifact_url
 from api.utils.recording_artifacts import (
     get_recording_storage_key,
@@ -218,56 +220,6 @@ def _validation_errors_http_exception(
         status_code=status_code,
         detail=ValidateWorkflowResponse(is_valid=False, errors=errors).model_dump(),
     )
-
-
-def _node_instance_validation_errors(
-    workflow_definition: Optional[dict],
-) -> list[WorkflowError]:
-    """Validate spec-driven max_instances without requiring a complete draft."""
-    if not workflow_definition:
-        return []
-    nodes = workflow_definition.get("nodes")
-    if not isinstance(nodes, list):
-        return []
-
-    node_types = [
-        node.get("type")
-        for node in nodes
-        if isinstance(node, dict) and isinstance(node.get("type"), str)
-    ]
-    return validate_node_instance_constraints(
-        node_types,
-        enforce_min_instances=False,
-    )
-
-
-def _transition_tool_name_validation_errors(
-    workflow_definition: Optional[dict],
-) -> list[WorkflowError]:
-    """Validate transition names without requiring a complete draft DTO."""
-    if not workflow_definition:
-        return []
-    edges = workflow_definition.get("edges")
-    if not isinstance(edges, list):
-        return []
-
-    transitions: list[tuple[str, str, str]] = []
-    for edge in edges:
-        if not isinstance(edge, dict):
-            continue
-        edge_id = edge.get("id")
-        source = edge.get("source")
-        data = edge.get("data")
-        label = data.get("label") if isinstance(data, dict) else None
-        if (
-            isinstance(edge_id, str)
-            and isinstance(source, str)
-            and isinstance(label, str)
-            and label
-        ):
-            transitions.append((edge_id, source, label))
-
-    return validate_unique_transition_tool_names(transitions)
 
 
 class CallDispositionCodes(BaseModel):

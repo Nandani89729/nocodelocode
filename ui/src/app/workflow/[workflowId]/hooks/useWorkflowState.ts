@@ -691,6 +691,7 @@ export const useWorkflowState = ({
         saveTemplateContextVariables,
         saveWorkflowConfigurations,
         saveDictionary,
+        validateWorkflow,
         // Export undo/redo state
         undo,
         redo,

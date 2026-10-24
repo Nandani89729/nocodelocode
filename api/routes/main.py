@@ -8,7 +8,10 @@ from pydantic import BaseModel
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.campaign import router as campaign_router
+from api.routes.copilot import router as copilot_router
 from api.routes.credentials import router as credentials_router
+from api.routes.doctor import router as doctor_router
+from api.routes.doctor_verify import router as doctor_verify_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.node_types import router as node_types_router
@@ -20,6 +23,7 @@ from api.routes.public_embed import router as public_embed_router
 from api.routes.public_embed_chat import router as public_embed_chat_router
 from api.routes.reports import router as reports_router
 from api.routes.s3_signed_url import router as s3_router
+from api.routes.self_improve import router as self_improve_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
 from api.routes.telephony import router as telephony_router
@@ -43,6 +47,10 @@ router.include_router(telephony_router)
 router.include_router(superuser_router)
 router.include_router(workflow_router)
 router.include_router(workflow_text_chat_router)
+router.include_router(doctor_router)
+router.include_router(doctor_verify_router)
+router.include_router(copilot_router)
+router.include_router(self_improve_router)
 router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)

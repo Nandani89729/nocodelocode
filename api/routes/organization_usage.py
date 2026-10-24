@@ -194,6 +194,8 @@ class DailyUsageBreakdownResponse(BaseModel):
     total_cost_usd: Optional[float] = None
     total_dograh_tokens: float
     currency: Optional[str] = None
+    # Doctor replay usage, reported on its own line (D21); included in totals.
+    doctor_replay: Optional[dict] = None
 
 
 @router.get("/usage/current-period", response_model=CurrentUsageResponse)
